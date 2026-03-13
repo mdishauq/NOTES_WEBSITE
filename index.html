@@ -58,19 +58,26 @@
         .replace(/\b\w/g, c => c.toUpperCase());
     }
 
+    function encodePath(path) {
+      return String(path)
+        .split("/")
+        .map(seg => encodeURIComponent(seg))
+        .join("/");
+    }
+
     function rawUrl(path) {
       return "https://raw.githubusercontent.com/" +
-        CONFIG.owner + "/" + CONFIG.repo + "/" + CONFIG.branch + "/" + path;
+        CONFIG.owner + "/" + CONFIG.repo + "/" + CONFIG.branch + "/" + encodePath(path);
     }
 
     function apiContentsUrl(path) {
       return "https://api.github.com/repos/" +
         CONFIG.owner + "/" + CONFIG.repo + "/contents/" +
-        encodeURIComponent(path) + "?ref=" + CONFIG.branch;
+        encodePath(path) + "?ref=" + encodeURIComponent(CONFIG.branch);
     }
 
     function normalizePath(path) {
-      const parts = path.split("/");
+      const parts = String(path).split("/");
       const stack = [];
       for (const part of parts) {
         if (!part || part === ".") continue;
@@ -83,9 +90,18 @@
       return stack.join("/");
     }
 
-    function resolveRelativeUrl(currentFilePath, url) {
-      const clean = (url || "").trim();
-      if (!clean) return clean;
+    function extractUrlValue(input) {
+      if (typeof input === "string") return input.trim();
+      if (!input || typeof input !== "object") return "";
+      if (typeof input.href === "string") return input.href.trim();
+      if (typeof input.url === "string") return input.url.trim();
+      return "";
+    }
+
+    function resolveRelativeUrl(currentFilePath, urlInput) {
+      const clean = extractUrlValue(urlInput);
+      if (!clean) return "";
+
       if (
         clean.startsWith("http://") ||
         clean.startsWith("https://") ||
@@ -99,17 +115,50 @@
       const currentDir = currentFilePath.includes("/")
         ? currentFilePath.slice(0, currentFilePath.lastIndexOf("/") + 1)
         : "";
+
       const combined = normalizePath(currentDir + clean);
       return rawUrl(combined);
+    }
+
+    function rewriteRelativeLinksAndImages(html, currentFilePath) {
+      const temp = document.createElement("div");
+      temp.innerHTML = html;
+
+      const links = temp.querySelectorAll("a[href]");
+      links.forEach(a => {
+        const original = a.getAttribute("href") || "";
+        const resolved = resolveRelativeUrl(currentFilePath, original);
+        if (resolved) a.setAttribute("href", resolved);
+
+        const href = a.getAttribute("href") || "";
+        const isExternal = href.startsWith("http://") || href.startsWith("https://");
+        if (isExternal) {
+          a.setAttribute("target", "_blank");
+          a.setAttribute("rel", "noopener noreferrer");
+        }
+      });
+
+      const images = temp.querySelectorAll("img[src]");
+      images.forEach(img => {
+        const original = img.getAttribute("src") || "";
+        const resolved = resolveRelativeUrl(currentFilePath, original);
+        if (resolved) img.setAttribute("src", resolved);
+      });
+
+      return temp.innerHTML;
     }
 
     async function getMarkdownFiles() {
       const response = await fetch(apiContentsUrl(CONFIG.notesPath));
       if (!response.ok) {
-        throw new Error("Failed to read notes folder. Check owner, repo, branch, and notes path.");
+        throw new Error("Failed to read notes folder. Check owner, repo, branch, notes path, and repository visibility.");
       }
 
       const items = await response.json();
+      if (!Array.isArray(items)) {
+        throw new Error("Notes path is invalid or not a folder.");
+      }
+
       return items
         .filter(item => item.type === "file" && item.name.toLowerCase().endsWith(".md"))
         .map(item => ({
@@ -148,35 +197,26 @@
 
     async function loadPage(path) {
       try {
+        pageTitleEl.textContent = "Loading...";
+        contentEl.innerHTML = '<p class="muted">Loading page...</p>';
+
         const res = await fetch(rawUrl(path));
         if (!res.ok) throw new Error("Failed to load markdown file.");
         const md = await res.text();
 
-        const renderer = new marked.Renderer();
+        const html = marked.parse(md, { gfm: true, breaks: false });
+        const rewritten = rewriteRelativeLinksAndImages(html, path);
 
-        renderer.link = function(href, title, text) {
-          const safeHref = resolveRelativeUrl(path, href);
-          const t = title ? ' title="' + title + '"' : "";
-          return '<a href="' + safeHref + '"' + t + ' target="_blank" rel="noopener noreferrer">' + text + "</a>";
-        };
-
-        renderer.image = function(href, title, text) {
-          const safeHref = resolveRelativeUrl(path, href);
-          const t = title ? ' title="' + title + '"' : "";
-          const alt = text || "";
-          return '<img src="' + safeHref + '" alt="' + alt + '"' + t + " />";
-        };
-
-        marked.setOptions({ renderer: renderer, gfm: true, breaks: false });
-        const html = marked.parse(md);
-        contentEl.innerHTML = DOMPurify.sanitize(html);
+        contentEl.innerHTML = DOMPurify.sanitize(rewritten, {
+          ADD_ATTR: ["target", "rel"]
+        });
 
         const fileName = path.split("/").pop() || path;
         pageTitleEl.textContent = toTitle(fileName);
         setActive(path);
       } catch (err) {
         pageTitleEl.textContent = "Error";
-        contentEl.innerHTML = '<p class="muted">' + err.message + "</p>";
+        contentEl.innerHTML = '<p class="muted">' + (err && err.message ? err.message : "Unknown error") + "</p>";
       }
     }
 
@@ -201,7 +241,7 @@
         await loadPage(target);
       } catch (err) {
         pageTitleEl.textContent = "Setup Needed";
-        contentEl.innerHTML = '<p class="muted">' + err.message + "</p>";
+        contentEl.innerHTML = '<p class="muted">' + (err && err.message ? err.message : "Unknown setup error") + "</p>";
       }
     }
 
