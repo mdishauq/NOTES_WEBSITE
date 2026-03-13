@@ -3,32 +3,43 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RTOS Notes</title>
+  <title>Ishauq's Notes</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="custom.css" />
 </head>
 <body>
-  <div class="bg-orb orb-1"></div>
-  <div class="bg-orb orb-2"></div>
-
   <div class="layout">
     <aside class="sidebar">
       <div class="brand">
-        <h1>RTOS Notes</h1>
-        <p>Each markdown file in the notes folder becomes a page.</p>
+        <div class="brand-icon">✦</div>
+        <h1>Ishauq's Notes</h1>
+        <p>A quiet place for clear thinking.</p>
       </div>
 
+      <div class="divider"></div>
+
       <div class="menu-wrap">
-        <div class="menu-title">Pages</div>
+        <div class="menu-title">
+          <span class="menu-title-icon">◈</span>
+          Pages
+        </div>
         <nav id="menu" class="menu"></nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <span>RTOS · Embedded Systems</span>
       </div>
     </aside>
 
     <main class="main">
       <header class="topbar">
-        <h2 id="page-title">Loading...</h2>
+        <div class="topbar-inner">
+          <h2 id="page-title">Loading...</h2>
+          <div class="topbar-badge">Note</div>
+        </div>
+        <div class="topbar-line"></div>
       </header>
 
       <article id="content" class="content">
@@ -59,10 +70,7 @@
     }
 
     function encodePath(path) {
-      return String(path)
-        .split("/")
-        .map(seg => encodeURIComponent(seg))
-        .join("/");
+      return String(path).split("/").map(seg => encodeURIComponent(seg)).join("/");
     }
 
     function rawUrl(path) {
@@ -81,10 +89,7 @@
       const stack = [];
       for (const part of parts) {
         if (!part || part === ".") continue;
-        if (part === "..") {
-          if (stack.length) stack.pop();
-          continue;
-        }
+        if (part === "..") { if (stack.length) stack.pop(); continue; }
         stack.push(part);
       }
       return stack.join("/");
@@ -101,91 +106,61 @@
     function resolveRelativeUrl(currentFilePath, urlInput) {
       const clean = extractUrlValue(urlInput);
       if (!clean) return "";
-
-      if (
-        clean.startsWith("http://") ||
-        clean.startsWith("https://") ||
-        clean.startsWith("#") ||
-        clean.startsWith("mailto:") ||
-        clean.startsWith("data:")
-      ) {
+      if (clean.startsWith("http://") || clean.startsWith("https://") ||
+          clean.startsWith("#") || clean.startsWith("mailto:") || clean.startsWith("data:")) {
         return clean;
       }
-
       const currentDir = currentFilePath.includes("/")
-        ? currentFilePath.slice(0, currentFilePath.lastIndexOf("/") + 1)
-        : "";
-
-      const combined = normalizePath(currentDir + clean);
-      return rawUrl(combined);
+        ? currentFilePath.slice(0, currentFilePath.lastIndexOf("/") + 1) : "";
+      return rawUrl(normalizePath(currentDir + clean));
     }
 
     function rewriteRelativeLinksAndImages(html, currentFilePath) {
       const temp = document.createElement("div");
       temp.innerHTML = html;
-
-      const links = temp.querySelectorAll("a[href]");
-      links.forEach(a => {
-        const original = a.getAttribute("href") || "";
-        const resolved = resolveRelativeUrl(currentFilePath, original);
+      temp.querySelectorAll("a[href]").forEach(a => {
+        const resolved = resolveRelativeUrl(currentFilePath, a.getAttribute("href") || "");
         if (resolved) a.setAttribute("href", resolved);
-
         const href = a.getAttribute("href") || "";
-        const isExternal = href.startsWith("http://") || href.startsWith("https://");
-        if (isExternal) {
+        if (href.startsWith("http://") || href.startsWith("https://")) {
           a.setAttribute("target", "_blank");
           a.setAttribute("rel", "noopener noreferrer");
         }
       });
-
-      const images = temp.querySelectorAll("img[src]");
-      images.forEach(img => {
-        const original = img.getAttribute("src") || "";
-        const resolved = resolveRelativeUrl(currentFilePath, original);
+      temp.querySelectorAll("img[src]").forEach(img => {
+        const resolved = resolveRelativeUrl(currentFilePath, img.getAttribute("src") || "");
         if (resolved) img.setAttribute("src", resolved);
       });
-
       return temp.innerHTML;
     }
 
     async function getMarkdownFiles() {
       const response = await fetch(apiContentsUrl(CONFIG.notesPath));
-      if (!response.ok) {
-        throw new Error("Failed to read notes folder. Check owner, repo, branch, notes path, and repository visibility.");
-      }
-
+      if (!response.ok) throw new Error("Failed to read notes folder. Check owner, repo, branch, notes path, and repository visibility.");
       const items = await response.json();
-      if (!Array.isArray(items)) {
-        throw new Error("Notes path is invalid or not a folder.");
-      }
-
+      if (!Array.isArray(items)) throw new Error("Notes path is invalid or not a folder.");
       return items
         .filter(item => item.type === "file" && item.name.toLowerCase().endsWith(".md"))
-        .map(item => ({
-          name: item.name,
-          path: item.path,
-          title: toTitle(item.name)
-        }))
+        .map(item => ({ name: item.name, path: item.path, title: toTitle(item.name) }))
         .sort((a, b) => a.title.localeCompare(b.title));
     }
 
     function renderMenu(files) {
       menuEl.innerHTML = "";
-      for (const file of files) {
+      files.forEach((file, i) => {
         const a = document.createElement("a");
         a.href = "#/" + encodeURIComponent(file.path);
         a.textContent = file.title;
         a.dataset.path = file.path;
         a.className = "menu-item";
+        a.style.animationDelay = (i * 60) + "ms";
         menuEl.appendChild(a);
-      }
+      });
     }
 
     function setActive(path) {
-      const links = menuEl.querySelectorAll(".menu-item");
-      links.forEach(link => {
-        if (link.dataset.path === path) link.classList.add("active");
-        else link.classList.remove("active");
+      menuEl.querySelectorAll(".menu-item").forEach(link => {
+        link.classList.toggle("active", link.dataset.path === path);
       });
     }
 
@@ -197,8 +172,9 @@
 
     async function loadPage(path) {
       try {
-        pageTitleEl.textContent = "Loading...";
-        contentEl.innerHTML = '<p class="muted">Loading page...</p>';
+        pageTitleEl.textContent = "Loading…";
+        contentEl.style.opacity = "0";
+        contentEl.style.transform = "translateY(6px)";
 
         const res = await fetch(rawUrl(path));
         if (!res.ok) throw new Error("Failed to load markdown file.");
@@ -206,42 +182,42 @@
 
         const html = marked.parse(md, { gfm: true, breaks: false });
         const rewritten = rewriteRelativeLinksAndImages(html, path);
+        contentEl.innerHTML = DOMPurify.sanitize(rewritten, { ADD_ATTR: ["target", "rel"] });
 
-        contentEl.innerHTML = DOMPurify.sanitize(rewritten, {
-          ADD_ATTR: ["target", "rel"]
-        });
-
-        const fileName = path.split("/").pop() || path;
-        pageTitleEl.textContent = toTitle(fileName);
+        pageTitleEl.textContent = toTitle(path.split("/").pop() || path);
         setActive(path);
+
+        requestAnimationFrame(() => {
+          contentEl.style.transition = "opacity 0.3s ease, transform 0.3s ease";
+          contentEl.style.opacity = "1";
+          contentEl.style.transform = "translateY(0)";
+        });
       } catch (err) {
         pageTitleEl.textContent = "Error";
-        contentEl.innerHTML = '<p class="muted">' + (err && err.message ? err.message : "Unknown error") + "</p>";
+        contentEl.innerHTML = '<p class="muted">' + (err?.message || "Unknown error") + "</p>";
+        contentEl.style.opacity = "1";
+        contentEl.style.transform = "none";
       }
     }
 
     async function boot() {
       try {
         const files = await getMarkdownFiles();
-
         if (!files.length) {
           pageTitleEl.textContent = "No Pages";
           contentEl.innerHTML = '<p class="muted">No markdown files found in notes.</p>';
           return;
         }
-
         renderMenu(files);
-
         let target = pathFromHash();
         if (!target || !files.some(f => f.path === target)) {
           target = files[0].path;
           window.location.hash = "#/" + encodeURIComponent(target);
         }
-
         await loadPage(target);
       } catch (err) {
         pageTitleEl.textContent = "Setup Needed";
-        contentEl.innerHTML = '<p class="muted">' + (err && err.message ? err.message : "Unknown setup error") + "</p>";
+        contentEl.innerHTML = '<p class="muted">' + (err?.message || "Unknown setup error") + "</p>";
       }
     }
 
