@@ -28,6 +28,33 @@
         <nav id="menu" class="menu"></nav>
       </div>
 
+      <div class="divider"></div>
+
+      <!-- ── Music Player ── -->
+      <div class="music-wrap">
+        <div class="menu-title">
+          <span class="menu-title-icon">♪</span>
+          Music
+          <button id="music-toggle" class="music-toggle-btn" title="Play / Pause">
+            <span id="music-toggle-icon">▶</span>
+          </button>
+        </div>
+
+        <nav id="music-menu" class="menu music-menu"></nav>
+
+        <div id="music-now-playing" class="music-now-playing hidden">
+          <div class="music-vinyl">
+            <div class="music-vinyl-inner"></div>
+          </div>
+          <div class="music-info">
+            <div id="music-track-title" class="music-track-title">—</div>
+            <div id="music-track-artist" class="music-track-artist">—</div>
+          </div>
+        </div>
+      </div>
+      <!-- Hidden YouTube iframe -->
+      <div id="yt-player-wrap" style="display:none;"></div>
+
       <div class="sidebar-footer">
         <span>RTOS · Embedded Systems</span>
       </div>
@@ -51,161 +78,253 @@
   <script src="https://cdn.jsdelivr.net/npm/marked@4/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
   <script>
+    /* ── Notes config ── */
     const CONFIG = {
       owner: "mdishauq",
       repo: "NOTES_WEBSITE",
       branch: "main",
-      notesPath: "notes"
+      notesPath: "notes",
+      musicFile: "music.json"   // path in your repo root
     };
 
-    const menuEl = document.getElementById("menu");
-    const contentEl = document.getElementById("content");
-    const pageTitleEl = document.getElementById("page-title");
+    /* ── DOM refs ── */
+    const menuEl          = document.getElementById("menu");
+    const contentEl       = document.getElementById("content");
+    const pageTitleEl     = document.getElementById("page-title");
+    const musicMenuEl     = document.getElementById("music-menu");
+    const nowPlayingEl    = document.getElementById("music-now-playing");
+    const trackTitleEl    = document.getElementById("music-track-title");
+    const trackArtistEl   = document.getElementById("music-track-artist");
+    const musicToggleBtn  = document.getElementById("music-toggle");
+    const musicToggleIcon = document.getElementById("music-toggle-icon");
+    const ytWrap          = document.getElementById("yt-player-wrap");
 
+    /* ── Notes helpers ── */
     function toTitle(fileName) {
-      return fileName
-        .replace(/\.md$/i, "")
-        .replace(/[-_]+/g, " ")
-        .replace(/\b\w/g, c => c.toUpperCase());
+      return fileName.replace(/\.md$/i,"").replace(/[-_]+/g," ").replace(/\b\w/g,c=>c.toUpperCase());
     }
-
     function encodePath(path) {
-      return String(path).split("/").map(seg => encodeURIComponent(seg)).join("/");
+      return String(path).split("/").map(seg=>encodeURIComponent(seg)).join("/");
     }
-
     function rawUrl(path) {
-      return "https://raw.githubusercontent.com/" +
-        CONFIG.owner + "/" + CONFIG.repo + "/" + CONFIG.branch + "/" + encodePath(path);
+      return "https://raw.githubusercontent.com/"+CONFIG.owner+"/"+CONFIG.repo+"/"+CONFIG.branch+"/"+encodePath(path);
     }
-
     function apiContentsUrl(path) {
-      return "https://api.github.com/repos/" +
-        CONFIG.owner + "/" + CONFIG.repo + "/contents/" +
-        encodePath(path) + "?ref=" + encodeURIComponent(CONFIG.branch);
+      return "https://api.github.com/repos/"+CONFIG.owner+"/"+CONFIG.repo+"/contents/"+encodePath(path)+"?ref="+encodeURIComponent(CONFIG.branch);
     }
-
     function normalizePath(path) {
-      const parts = String(path).split("/");
-      const stack = [];
-      for (const part of parts) {
-        if (!part || part === ".") continue;
-        if (part === "..") { if (stack.length) stack.pop(); continue; }
-        stack.push(part);
-      }
+      const parts=String(path).split("/"),stack=[];
+      for(const p of parts){if(!p||p===".")continue;if(p==="..")stack.length&&stack.pop();else stack.push(p);}
       return stack.join("/");
     }
-
     function extractUrlValue(input) {
-      if (typeof input === "string") return input.trim();
-      if (!input || typeof input !== "object") return "";
-      if (typeof input.href === "string") return input.href.trim();
-      if (typeof input.url === "string") return input.url.trim();
-      return "";
+      if(typeof input==="string")return input.trim();
+      if(!input||typeof input!=="object")return"";
+      return(input.href||input.url||"").trim();
     }
-
-    function resolveRelativeUrl(currentFilePath, urlInput) {
-      const clean = extractUrlValue(urlInput);
-      if (!clean) return "";
-      if (clean.startsWith("http://") || clean.startsWith("https://") ||
-          clean.startsWith("#") || clean.startsWith("mailto:") || clean.startsWith("data:")) {
-        return clean;
-      }
-      const currentDir = currentFilePath.includes("/")
-        ? currentFilePath.slice(0, currentFilePath.lastIndexOf("/") + 1) : "";
-      return rawUrl(normalizePath(currentDir + clean));
+    function resolveRelativeUrl(currentFilePath,urlInput) {
+      const clean=extractUrlValue(urlInput);
+      if(!clean)return"";
+      if(/^(https?:|#|mailto:|data:)/.test(clean))return clean;
+      const dir=currentFilePath.includes("/")?currentFilePath.slice(0,currentFilePath.lastIndexOf("/")+1):"";
+      return rawUrl(normalizePath(dir+clean));
     }
-
-    function rewriteRelativeLinksAndImages(html, currentFilePath) {
-      const temp = document.createElement("div");
-      temp.innerHTML = html;
-      temp.querySelectorAll("a[href]").forEach(a => {
-        const resolved = resolveRelativeUrl(currentFilePath, a.getAttribute("href") || "");
-        if (resolved) a.setAttribute("href", resolved);
-        const href = a.getAttribute("href") || "";
-        if (href.startsWith("http://") || href.startsWith("https://")) {
-          a.setAttribute("target", "_blank");
-          a.setAttribute("rel", "noopener noreferrer");
-        }
+    function rewriteRelativeLinksAndImages(html,currentFilePath) {
+      const temp=document.createElement("div");temp.innerHTML=html;
+      temp.querySelectorAll("a[href]").forEach(a=>{
+        const resolved=resolveRelativeUrl(currentFilePath,a.getAttribute("href")||"");
+        if(resolved)a.setAttribute("href",resolved);
+        const href=a.getAttribute("href")||"";
+        if(/^https?:/.test(href)){a.setAttribute("target","_blank");a.setAttribute("rel","noopener noreferrer");}
       });
-      temp.querySelectorAll("img[src]").forEach(img => {
-        const resolved = resolveRelativeUrl(currentFilePath, img.getAttribute("src") || "");
-        if (resolved) img.setAttribute("src", resolved);
+      temp.querySelectorAll("img[src]").forEach(img=>{
+        const resolved=resolveRelativeUrl(currentFilePath,img.getAttribute("src")||"");
+        if(resolved)img.setAttribute("src",resolved);
       });
       return temp.innerHTML;
     }
-
     async function getMarkdownFiles() {
-      const response = await fetch(apiContentsUrl(CONFIG.notesPath));
-      if (!response.ok) throw new Error("Failed to read notes folder. Check owner, repo, branch, notes path, and repository visibility.");
-      const items = await response.json();
-      if (!Array.isArray(items)) throw new Error("Notes path is invalid or not a folder.");
-      return items
-        .filter(item => item.type === "file" && item.name.toLowerCase().endsWith(".md"))
-        .map(item => ({ name: item.name, path: item.path, title: toTitle(item.name) }))
-        .sort((a, b) => a.title.localeCompare(b.title));
+      const res=await fetch(apiContentsUrl(CONFIG.notesPath));
+      if(!res.ok)throw new Error("Failed to read notes folder.");
+      const items=await res.json();
+      if(!Array.isArray(items))throw new Error("Notes path invalid.");
+      return items.filter(i=>i.type==="file"&&i.name.toLowerCase().endsWith(".md"))
+        .map(i=>({name:i.name,path:i.path,title:toTitle(i.name)}))
+        .sort((a,b)=>a.title.localeCompare(b.title));
     }
-
     function renderMenu(files) {
-      menuEl.innerHTML = "";
-      files.forEach((file, i) => {
-        const a = document.createElement("a");
-        a.href = "#/" + encodeURIComponent(file.path);
-        a.textContent = file.title;
-        a.dataset.path = file.path;
-        a.className = "menu-item";
-        a.style.animationDelay = (i * 60) + "ms";
+      menuEl.innerHTML="";
+      files.forEach((file,i)=>{
+        const a=document.createElement("a");
+        a.href="#/"+encodeURIComponent(file.path);
+        a.textContent=file.title;
+        a.dataset.path=file.path;
+        a.className="menu-item";
+        a.style.animationDelay=(i*60)+"ms";
         menuEl.appendChild(a);
       });
     }
-
     function setActive(path) {
-      menuEl.querySelectorAll(".menu-item").forEach(link => {
-        link.classList.toggle("active", link.dataset.path === path);
+      menuEl.querySelectorAll(".menu-item").forEach(link=>{
+        link.classList.toggle("active",link.dataset.path===path);
       });
     }
-
     function pathFromHash() {
-      const hash = window.location.hash || "";
-      if (!hash.startsWith("#/")) return "";
+      const hash=window.location.hash||"";
+      if(!hash.startsWith("#/"))return"";
       return decodeURIComponent(hash.slice(2));
     }
-
     async function loadPage(path) {
       try {
-        pageTitleEl.textContent = "Loading…";
-        contentEl.style.opacity = "0";
-        contentEl.style.transform = "translateY(6px)";
-
-        const res = await fetch(rawUrl(path));
-        if (!res.ok) throw new Error("Failed to load markdown file.");
-        const md = await res.text();
-
-        const html = marked.parse(md, { gfm: true, breaks: false });
-        const rewritten = rewriteRelativeLinksAndImages(html, path);
-        contentEl.innerHTML = DOMPurify.sanitize(rewritten, { ADD_ATTR: ["target", "rel"] });
-
-        pageTitleEl.textContent = toTitle(path.split("/").pop() || path);
+        pageTitleEl.textContent="Loading…";
+        contentEl.style.opacity="0";contentEl.style.transform="translateY(6px)";
+        const res=await fetch(rawUrl(path));
+        if(!res.ok)throw new Error("Failed to load markdown file.");
+        const md=await res.text();
+        const html=marked.parse(md,{gfm:true,breaks:false});
+        const rewritten=rewriteRelativeLinksAndImages(html,path);
+        contentEl.innerHTML=DOMPurify.sanitize(rewritten,{ADD_ATTR:["target","rel"]});
+        pageTitleEl.textContent=toTitle(path.split("/").pop()||path);
         setActive(path);
-
-        requestAnimationFrame(() => {
-          contentEl.style.transition = "opacity 0.3s ease, transform 0.3s ease";
-          contentEl.style.opacity = "1";
-          contentEl.style.transform = "translateY(0)";
+        requestAnimationFrame(()=>{
+          contentEl.style.transition="opacity 0.3s ease, transform 0.3s ease";
+          contentEl.style.opacity="1";contentEl.style.transform="translateY(0)";
         });
-      } catch (err) {
-        pageTitleEl.textContent = "Error";
-        contentEl.innerHTML = '<p class="muted">' + (err?.message || "Unknown error") + "</p>";
-        contentEl.style.opacity = "1";
-        contentEl.style.transform = "none";
+      } catch(err) {
+        pageTitleEl.textContent="Error";
+        contentEl.innerHTML='<p class="muted">'+(err?.message||"Unknown error")+"</p>";
+        contentEl.style.opacity="1";contentEl.style.transform="none";
       }
     }
 
+    /* ── Music Player ── */
+    let musicTracks    = [];
+    let currentTrack   = null;
+    let isPlaying      = false;
+    let ytPlayer       = null;
+    let ytReady        = false;
+
+    function extractVideoId(url) {
+      try {
+        const u = new URL(url);
+        if (u.hostname.includes("youtu.be")) return u.pathname.slice(1).split("?")[0];
+        return u.searchParams.get("v") || "";
+      } catch { return ""; }
+    }
+
+    /* Load YouTube IFrame API once */
+    function loadYTApi() {
+      if (document.getElementById("yt-api-script")) return;
+      const s = document.createElement("script");
+      s.id = "yt-api-script";
+      s.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(s);
+    }
+
+    window.onYouTubeIframeAPIReady = function () {
+      ytReady = true;
+    };
+
+    function createPlayer(videoId) {
+      ytWrap.innerHTML = "";
+      const div = document.createElement("div");
+      div.id = "yt-iframe";
+      ytWrap.appendChild(div);
+      ytPlayer = new YT.Player("yt-iframe", {
+        videoId,
+        playerVars: { autoplay: 1, loop: 1, playlist: videoId, controls: 0, modestbranding: 1 },
+        events: {
+          onReady: e => { e.target.playVideo(); isPlaying = true; syncToggleBtn(); },
+          onStateChange: e => {
+            // YT.PlayerState.ENDED = 0 — loop handles it, but keep in sync
+            if (e.data === YT.PlayerState.PLAYING) { isPlaying = true; syncToggleBtn(); }
+            if (e.data === YT.PlayerState.PAUSED)  { isPlaying = false; syncToggleBtn(); }
+          }
+        }
+      });
+    }
+
+    function playTrack(track) {
+      const vid = extractVideoId(track.url);
+      if (!vid) return;
+      currentTrack = track;
+
+      // Update now-playing strip
+      trackTitleEl.textContent  = track.title;
+      trackArtistEl.textContent = track.artist || "";
+      nowPlayingEl.classList.remove("hidden");
+
+      // Highlight active in music menu
+      musicMenuEl.querySelectorAll(".music-item").forEach(el => {
+        el.classList.toggle("active", el.dataset.url === track.url);
+      });
+
+      if (ytReady) {
+        if (ytPlayer && ytPlayer.loadVideoById) {
+          ytPlayer.loadVideoById({ videoId: vid, suggestedQuality: "small" });
+          isPlaying = true; syncToggleBtn();
+        } else {
+          createPlayer(vid);
+        }
+      } else {
+        // Wait for API, then play
+        const poll = setInterval(() => {
+          if (ytReady) { clearInterval(poll); createPlayer(vid); }
+        }, 100);
+      }
+    }
+
+    function syncToggleBtn() {
+      musicToggleIcon.textContent = isPlaying ? "⏸" : "▶";
+      musicToggleBtn.title = isPlaying ? "Pause" : "Play";
+    }
+
+    musicToggleBtn.addEventListener("click", () => {
+      if (!ytPlayer) return;
+      if (isPlaying) { ytPlayer.pauseVideo(); isPlaying = false; }
+      else           { ytPlayer.playVideo();  isPlaying = true;  }
+      syncToggleBtn();
+    });
+
+    async function loadMusicTracks() {
+      try {
+        const url = rawUrl(CONFIG.musicFile);
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("music.json not found");
+        musicTracks = await res.json();
+        renderMusicMenu(musicTracks);
+        loadYTApi();
+      } catch (err) {
+        musicMenuEl.innerHTML = '<p class="muted" style="padding:10px;font-size:0.8rem;">Add music.json to your repo root.</p>';
+      }
+    }
+
+    function renderMusicMenu(tracks) {
+      musicMenuEl.innerHTML = "";
+      tracks.forEach((track, i) => {
+        const a = document.createElement("a");
+        a.href = "#";
+        a.className = "menu-item music-item";
+        a.dataset.url = track.url;
+        a.style.animationDelay = (i * 60) + "ms";
+        a.innerHTML = `
+          <span class="music-item-note">♩</span>
+          <span class="music-item-info">
+            <span class="music-item-title">${track.title}</span>
+            ${track.artist ? `<span class="music-item-artist">${track.artist}</span>` : ""}
+          </span>`;
+        a.addEventListener("click", e => { e.preventDefault(); playTrack(track); });
+        musicMenuEl.appendChild(a);
+      });
+    }
+
+    /* ── Boot ── */
     async function boot() {
       try {
         const files = await getMarkdownFiles();
         if (!files.length) {
           pageTitleEl.textContent = "No Pages";
-          contentEl.innerHTML = '<p class="muted">No markdown files found in notes.</p>';
+          contentEl.innerHTML = '<p class="muted">No markdown files found.</p>';
           return;
         }
         renderMenu(files);
@@ -217,7 +336,7 @@
         await loadPage(target);
       } catch (err) {
         pageTitleEl.textContent = "Setup Needed";
-        contentEl.innerHTML = '<p class="muted">' + (err?.message || "Unknown setup error") + "</p>";
+        contentEl.innerHTML = '<p class="muted">'+(err?.message||"Unknown setup error")+"</p>";
       }
     }
 
@@ -227,6 +346,7 @@
     });
 
     boot();
+    loadMusicTracks();
   </script>
 </body>
 </html>
