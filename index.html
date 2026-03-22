@@ -12,9 +12,35 @@
 <body>
 
   <!-- ════════════════════════════════════════
-       LOADING SCREEN
+       LOGIN SCREEN
        ════════════════════════════════════════ -->
-  <div id="loader">
+  <div id="login-screen">
+    <div class="loader-bg"></div>
+    <canvas id="login-canvas"></canvas>
+    <div class="login-box">
+      <div class="loader-sigil" style="font-size:2rem;margin-bottom:10px;">✦</div>
+      <h1 class="loader-title" style="font-size:1.7rem;margin-bottom:4px;">Ishauq's Notes</h1>
+      <p class="loader-sub" style="margin-bottom:24px;opacity:1;">Enter the passphrase to continue.</p>
+
+      <div class="login-field-wrap">
+        <input
+          id="login-input"
+          type="password"
+          class="login-input"
+          placeholder="Passphrase…"
+          autocomplete="current-password"
+          autofocus
+        />
+        <button id="login-btn" class="login-btn">Enter ❧</button>
+      </div>
+      <p id="login-error" class="login-error hidden">Incorrect passphrase. Try again.</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       LOADING SCREEN (shown after login)
+       ════════════════════════════════════════ -->
+  <div id="loader" style="display:none;">
     <div class="loader-bg"></div>
     <canvas id="fairy-canvas"></canvas>
     <div class="loader-center">
@@ -31,28 +57,22 @@
   <!-- ════════════════════════════════════════
        MAIN APP
        ════════════════════════════════════════ -->
-  <div class="layout" id="app" style="opacity:0;pointer-events:none;">
+  <div class="layout" id="app" style="opacity:0;pointer-events:none;display:none;">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-icon">✦</div>
         <h1>Ishauq's Notes</h1>
         <p>A quiet place for clear thinking.</p>
       </div>
-
       <div class="divider"></div>
-
       <div class="menu-wrap">
         <div class="menu-title">
           <span class="menu-title-icon">◈</span>
           Pages
         </div>
-        <!-- Tree nav — folders + files rendered here -->
         <nav id="menu" class="menu"></nav>
       </div>
-
       <div class="divider"></div>
-
-      <!-- ── Music Player ── -->
       <div class="music-wrap">
         <div class="menu-title">
           <span class="menu-title-icon">♪</span>
@@ -70,12 +90,8 @@
           </div>
         </div>
       </div>
-
       <audio id="audio-player" loop style="display:none;"></audio>
-
-      <div class="sidebar-footer">
-        <span>RTOS · Embedded Systems</span>
-      </div>
+      <div class="sidebar-footer"><span>RTOS · Embedded Systems</span></div>
     </aside>
 
     <main class="main">
@@ -96,102 +112,6 @@
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
   <script>
   /* ══════════════════════════════════════════════════════
-     LOADING SCREEN
-     ══════════════════════════════════════════════════════ */
-  (function () {
-    const DURATION = 7000;
-    const loaderEl = document.getElementById("loader");
-    const appEl    = document.getElementById("app");
-    const barEl    = document.getElementById("loader-bar");
-    const hintEl   = document.getElementById("loader-hint");
-    const canvas   = document.getElementById("fairy-canvas");
-    const ctx      = canvas.getContext("2d");
-
-    const hints = [
-      "Opening the tome…",
-      "Lighting the candles…",
-      "Unrolling the scrolls…",
-      "Summoning the quill…",
-      "Almost ready…"
-    ];
-
-    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
-
-    const GLYPHS  = ["♩","♪","♫","♬","✦","◈","§","¶","✿","❧","☙","✎","⚜","❦"];
-    const particles = [];
-    function rnd(a,b){ return a + Math.random()*(b-a); }
-
-    function spawnParticle() {
-      const colors = ["rgba(61,107,82,","rgba(90,81,71,","rgba(138,127,115,","rgba(46,42,36,","rgba(181,201,190,"];
-      particles.push({
-        x: rnd(0, canvas.width), y: canvas.height + 20,
-        vx: rnd(-0.6,0.6), vy: rnd(-1.4,-0.5),
-        size: rnd(12,30), glyph: GLYPHS[Math.floor(Math.random()*GLYPHS.length)],
-        col: colors[Math.floor(Math.random()*colors.length)],
-        alpha: 0, alphaV: rnd(0.008,0.02),
-        phase: rnd(0,Math.PI*2), wobble: rnd(0.01,0.03), wobbleA: rnd(0.4,1.2),
-        rot: rnd(-0.3,0.3), rotV: rnd(-0.008,0.008),
-        life: 1, lifeV: rnd(0.003,0.007),
-      });
-    }
-
-    let lastSpawn = 0;
-    function maybeSpawn(now) {
-      if (now - lastSpawn > 120 && particles.length < 55) { spawnParticle(); lastSpawn = now; }
-    }
-
-    let startTime = null, hintIndex = 0;
-    function tick(now) {
-      if (!startTime) startTime = now;
-      const elapsed  = now - startTime;
-      const progress = Math.min(elapsed / DURATION, 1);
-
-      const step = Math.min(Math.floor(progress * hints.length), hints.length - 1);
-      if (step !== hintIndex) {
-        hintIndex = step;
-        hintEl.style.opacity = "0";
-        setTimeout(() => { hintEl.textContent = hints[hintIndex]; hintEl.style.opacity = "1"; }, 200);
-      }
-
-      barEl.style.width = (progress * 100) + "%";
-      maybeSpawn(now);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.phase += p.wobble; p.x += p.vx + Math.sin(p.phase)*p.wobbleA; p.y += p.vy;
-        p.rot += p.rotV; p.life -= p.lifeV;
-        if (p.alpha < 1) p.alpha = Math.min(p.alpha + p.alphaV, 0.85);
-        const a = p.life < 0.3 ? (p.life / 0.3) * p.alpha : p.alpha;
-        if (p.life <= 0 || p.y < -40) { particles.splice(i, 1); continue; }
-        ctx.save();
-        ctx.translate(p.x, p.y); ctx.rotate(p.rot);
-        ctx.font = `${p.size}px "Lora", Georgia, serif`;
-        ctx.fillStyle = p.col + a + ")";
-        ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.shadowColor = p.col + "0.4)"; ctx.shadowBlur = 8;
-        ctx.fillText(p.glyph, 0, 0);
-        ctx.restore();
-      }
-
-      if (progress < 1) {
-        requestAnimationFrame(tick);
-      } else {
-        loaderEl.style.transition = "opacity 0.9s ease";
-        loaderEl.style.opacity    = "0";
-        appEl.style.transition    = "opacity 0.9s ease 0.4s";
-        appEl.style.opacity       = "1";
-        appEl.style.pointerEvents = "all";
-        setTimeout(() => loaderEl.style.display = "none", 1400);
-      }
-    }
-    requestAnimationFrame(tick);
-  })();
-
-
-  /* ══════════════════════════════════════════════════════
      CONFIG
      ══════════════════════════════════════════════════════ */
   const CONFIG = {
@@ -200,82 +120,262 @@
     branch:    "main",
     notesPath: "notes",
     musicPath: "music",
-    musicFile: "music.json"
+    musicFile: "music.json",
+    configFile: "config.json"   // where the hash lives
   };
+
+  /* ══════════════════════════════════════════════════════
+     SHA-256 HELPER (native Web Crypto — no libraries)
+     ══════════════════════════════════════════════════════ */
+  async function sha256(text) {
+    const buf    = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+  }
+
+  /* ══════════════════════════════════════════════════════
+     LOGIN CANVAS — same fairy particles on login screen
+     ══════════════════════════════════════════════════════ */
+  (function loginCanvas() {
+    const canvas = document.getElementById("login-canvas");
+    const ctx    = canvas.getContext("2d");
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    resize(); window.addEventListener("resize", resize);
+
+    const GLYPHS = ["♩","♪","♫","♬","✦","◈","§","✿","❧","☙","✎","⚜","❦","¶"];
+    const particles = [];
+    function rnd(a,b){ return a+Math.random()*(b-a); }
+    function spawn() {
+      const colors = ["rgba(61,107,82,","rgba(90,81,71,","rgba(138,127,115,","rgba(46,42,36,","rgba(181,201,190,"];
+      particles.push({
+        x:rnd(0,canvas.width), y:canvas.height+20,
+        vx:rnd(-0.5,0.5), vy:rnd(-1.2,-0.4),
+        size:rnd(10,26), glyph:GLYPHS[Math.floor(Math.random()*GLYPHS.length)],
+        col:colors[Math.floor(Math.random()*colors.length)],
+        alpha:0, alphaV:rnd(0.006,0.018),
+        phase:rnd(0,Math.PI*2), wobble:rnd(0.01,0.03), wobbleA:rnd(0.3,1.0),
+        rot:rnd(-0.3,0.3), rotV:rnd(-0.006,0.006),
+        life:1, lifeV:rnd(0.002,0.005),
+      });
+    }
+    let lastSpawn=0;
+    function tick(now) {
+      if(now-lastSpawn>140 && particles.length<40){ spawn(); lastSpawn=now; }
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      for(let i=particles.length-1;i>=0;i--){
+        const p=particles[i];
+        p.phase+=p.wobble; p.x+=p.vx+Math.sin(p.phase)*p.wobbleA; p.y+=p.vy;
+        p.rot+=p.rotV; p.life-=p.lifeV;
+        if(p.alpha<1) p.alpha=Math.min(p.alpha+p.alphaV,0.8);
+        const a=p.life<0.3?(p.life/0.3)*p.alpha:p.alpha;
+        if(p.life<=0||p.y<-40){particles.splice(i,1);continue;}
+        ctx.save();
+        ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+        ctx.font=`${p.size}px "Lora",Georgia,serif`;
+        ctx.fillStyle=p.col+a+")";
+        ctx.textAlign="center"; ctx.textBaseline="middle";
+        ctx.shadowColor=p.col+"0.3)"; ctx.shadowBlur=6;
+        ctx.fillText(p.glyph,0,0);
+        ctx.restore();
+      }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  })();
+
+  /* ══════════════════════════════════════════════════════
+     LOGIN LOGIC
+     ══════════════════════════════════════════════════════ */
+  const SESSION_KEY = "iq_notes_auth";
+
+  async function fetchPasswordHash() {
+    const url = `https://raw.githubusercontent.com/${CONFIG.owner}/${CONFIG.repo}/${CONFIG.branch}/${CONFIG.configFile}`;
+    const res = await fetch(url + "?t=" + Date.now()); // bust cache
+    if (!res.ok) throw new Error("Could not load config.json");
+    const data = await res.json();
+    return data.passwordHash;
+  }
+
+  async function attemptLogin(inputPassword) {
+    const loginBtn   = document.getElementById("login-btn");
+    const loginError = document.getElementById("login-error");
+    loginBtn.textContent = "Checking…";
+    loginBtn.disabled    = true;
+    loginError.classList.add("hidden");
+
+    try {
+      const hash         = await sha256(inputPassword);
+      const correctHash  = await fetchPasswordHash();
+
+      if (hash === correctHash) {
+        // Store session (tab only — sessionStorage clears when browser closes)
+        sessionStorage.setItem(SESSION_KEY, hash);
+        startLoading();
+      } else {
+        loginError.classList.remove("hidden");
+        loginBtn.textContent = "Enter ❧";
+        loginBtn.disabled    = false;
+        document.getElementById("login-input").value = "";
+        document.getElementById("login-input").focus();
+      }
+    } catch (err) {
+      loginError.textContent = "Could not verify — check your connection.";
+      loginError.classList.remove("hidden");
+      loginBtn.textContent = "Enter ❧";
+      loginBtn.disabled    = false;
+    }
+  }
+
+  function checkSession() {
+    return sessionStorage.getItem(SESSION_KEY) !== null;
+  }
+
+  /* Wire up login UI */
+  document.getElementById("login-btn").addEventListener("click", () => {
+    const val = document.getElementById("login-input").value.trim();
+    if (val) attemptLogin(val);
+  });
+  document.getElementById("login-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      const val = document.getElementById("login-input").value.trim();
+      if (val) attemptLogin(val);
+    }
+  });
+
+  /* ══════════════════════════════════════════════════════
+     LOADING SCREEN (7 sec fairy animation)
+     ══════════════════════════════════════════════════════ */
+  function startLoading() {
+    document.getElementById("login-screen").style.transition = "opacity 0.5s ease";
+    document.getElementById("login-screen").style.opacity    = "0";
+    setTimeout(() => {
+      document.getElementById("login-screen").style.display = "none";
+      document.getElementById("loader").style.display       = "flex";
+      runLoader();
+    }, 500);
+  }
+
+  function runLoader() {
+    const DURATION = 7000;
+    const loaderEl = document.getElementById("loader");
+    const appEl    = document.getElementById("app");
+    const barEl    = document.getElementById("loader-bar");
+    const hintEl   = document.getElementById("loader-hint");
+    const canvas   = document.getElementById("fairy-canvas");
+    const ctx      = canvas.getContext("2d");
+
+    const hints = ["Opening the tome…","Lighting the candles…","Unrolling the scrolls…","Summoning the quill…","Almost ready…"];
+    function resize(){ canvas.width=window.innerWidth; canvas.height=window.innerHeight; }
+    resize(); window.addEventListener("resize", resize);
+
+    const GLYPHS=["♩","♪","♫","♬","✦","◈","§","¶","✿","❧","☙","✎","⚜","❦"];
+    const particles=[];
+    function rnd(a,b){return a+Math.random()*(b-a);}
+    function spawn(){
+      const colors=["rgba(61,107,82,","rgba(90,81,71,","rgba(138,127,115,","rgba(46,42,36,","rgba(181,201,190,"];
+      particles.push({
+        x:rnd(0,canvas.width),y:canvas.height+20,
+        vx:rnd(-0.6,0.6),vy:rnd(-1.4,-0.5),
+        size:rnd(12,30),glyph:GLYPHS[Math.floor(Math.random()*GLYPHS.length)],
+        col:colors[Math.floor(Math.random()*colors.length)],
+        alpha:0,alphaV:rnd(0.008,0.02),
+        phase:rnd(0,Math.PI*2),wobble:rnd(0.01,0.03),wobbleA:rnd(0.4,1.2),
+        rot:rnd(-0.3,0.3),rotV:rnd(-0.008,0.008),
+        life:1,lifeV:rnd(0.003,0.007),
+      });
+    }
+
+    let lastSpawn=0, startTime=null, hintIndex=0;
+    function tick(now){
+      if(!startTime) startTime=now;
+      const elapsed=now-startTime, progress=Math.min(elapsed/DURATION,1);
+      const step=Math.min(Math.floor(progress*hints.length),hints.length-1);
+      if(step!==hintIndex){
+        hintIndex=step; hintEl.style.opacity="0";
+        setTimeout(()=>{hintEl.textContent=hints[hintIndex];hintEl.style.opacity="1";},200);
+      }
+      barEl.style.width=(progress*100)+"%";
+      if(now-lastSpawn>120&&particles.length<55){spawn();lastSpawn=now;}
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      for(let i=particles.length-1;i>=0;i--){
+        const p=particles[i];
+        p.phase+=p.wobble;p.x+=p.vx+Math.sin(p.phase)*p.wobbleA;p.y+=p.vy;
+        p.rot+=p.rotV;p.life-=p.lifeV;
+        if(p.alpha<1)p.alpha=Math.min(p.alpha+p.alphaV,0.85);
+        const a=p.life<0.3?(p.life/0.3)*p.alpha:p.alpha;
+        if(p.life<=0||p.y<-40){particles.splice(i,1);continue;}
+        ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot);
+        ctx.font=`${p.size}px "Lora",Georgia,serif`;
+        ctx.fillStyle=p.col+a+")";ctx.textAlign="center";ctx.textBaseline="middle";
+        ctx.shadowColor=p.col+"0.4)";ctx.shadowBlur=8;
+        ctx.fillText(p.glyph,0,0);ctx.restore();
+      }
+      if(progress<1){
+        requestAnimationFrame(tick);
+      } else {
+        loaderEl.style.transition="opacity 0.9s ease";
+        loaderEl.style.opacity="0";
+        appEl.style.display="grid";
+        requestAnimationFrame(()=>{
+          appEl.style.transition="opacity 0.9s ease 0.4s";
+          appEl.style.opacity="1";
+          appEl.style.pointerEvents="all";
+        });
+        setTimeout(()=>loaderEl.style.display="none",1400);
+        boot();
+        loadMusicTracks();
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  /* ══════════════════════════════════════════════════════
+     INIT — check session first
+     ══════════════════════════════════════════════════════ */
+  if (checkSession()) {
+    // Already logged in this tab session — skip login
+    document.getElementById("login-screen").style.display = "none";
+    startLoading();
+  }
+  // else: login screen is already visible, waiting for input
 
   /* ══════════════════════════════════════════════════════
      HELPERS
      ══════════════════════════════════════════════════════ */
-  function toTitle(name) {
-    return name.replace(/\.md$/i,"").replace(/[-_]+/g," ").replace(/\b\w/g,c=>c.toUpperCase());
-  }
-  function encodePath(p) { return String(p).split("/").map(s=>encodeURIComponent(s)).join("/"); }
-  function rawUrl(p)     { return `https://raw.githubusercontent.com/${CONFIG.owner}/${CONFIG.repo}/${CONFIG.branch}/${encodePath(p)}`; }
-  function apiUrl(p)     { return `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${encodePath(p)}?ref=${encodeURIComponent(CONFIG.branch)}`; }
-
-  function normalizePath(p) {
+  function toTitle(n){ return n.replace(/\.md$/i,"").replace(/[-_]+/g," ").replace(/\b\w/g,c=>c.toUpperCase()); }
+  function encodePath(p){ return String(p).split("/").map(s=>encodeURIComponent(s)).join("/"); }
+  function rawUrl(p){ return `https://raw.githubusercontent.com/${CONFIG.owner}/${CONFIG.repo}/${CONFIG.branch}/${encodePath(p)}`; }
+  function apiUrl(p){ return `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${encodePath(p)}?ref=${encodeURIComponent(CONFIG.branch)}`; }
+  function normalizePath(p){
     const parts=String(p).split("/"),s=[];
     for(const x of parts){if(!x||x===".")continue;if(x==="..")s.length&&s.pop();else s.push(x);}
     return s.join("/");
   }
-  function resolveRelativeUrl(cur, inp) {
-    const raw = typeof inp==="string"?inp.trim():(inp?.href||inp?.url||"").trim();
+  function resolveRelativeUrl(cur,inp){
+    const raw=typeof inp==="string"?inp.trim():(inp?.href||inp?.url||"").trim();
     if(!raw)return"";
     if(/^(https?:|#|mailto:|data:)/.test(raw))return raw;
     const dir=cur.includes("/")?cur.slice(0,cur.lastIndexOf("/")+1):"";
     return rawUrl(normalizePath(dir+raw));
   }
-  function rewriteDoc(html, cur) {
-    const t=document.createElement("div"); t.innerHTML=html;
+  function rewriteDoc(html,cur){
+    const t=document.createElement("div");t.innerHTML=html;
     t.querySelectorAll("a[href]").forEach(a=>{
-      const r=resolveRelativeUrl(cur, a.getAttribute("href")||"");
-      if(r) a.setAttribute("href",r);
-      if(/^https?:/.test(a.getAttribute("href")||"")){ a.setAttribute("target","_blank"); a.setAttribute("rel","noopener noreferrer"); }
+      const r=resolveRelativeUrl(cur,a.getAttribute("href")||"");
+      if(r)a.setAttribute("href",r);
+      if(/^https?:/.test(a.getAttribute("href")||"")){a.setAttribute("target","_blank");a.setAttribute("rel","noopener noreferrer");}
     });
     t.querySelectorAll("img[src]").forEach(img=>{
-      const r=resolveRelativeUrl(cur, img.getAttribute("src")||"");
-      if(r) img.setAttribute("src",r);
+      const r=resolveRelativeUrl(cur,img.getAttribute("src")||"");
+      if(r)img.setAttribute("src",r);
     });
     return t.innerHTML;
   }
-
-  /* ══════════════════════════════════════════════════════
-     GITHUB API — fetch directory contents
-     ══════════════════════════════════════════════════════ */
-  async function fetchContents(path) {
-    const res = await fetch(apiUrl(path));
-    if (!res.ok) throw new Error(`Failed to read: ${path}`);
-    const data = await res.json();
-    if (!Array.isArray(data)) throw new Error(`Not a folder: ${path}`);
+  async function fetchContents(path){
+    const res=await fetch(apiUrl(path));
+    if(!res.ok)throw new Error(`Failed to read: ${path}`);
+    const data=await res.json();
+    if(!Array.isArray(data))throw new Error(`Not a folder: ${path}`);
     return data;
-  }
-
-  /* ══════════════════════════════════════════════════════
-     BUILD TREE
-     Returns array of nodes:
-       { type:"file", name, path, title }
-       { type:"folder", name, path, title, children:[] }
-     We fetch the top-level notes dir, then lazy-load folders
-     when the user clicks them.
-     ══════════════════════════════════════════════════════ */
-  async function buildTopLevel() {
-    const items = await fetchContents(CONFIG.notesPath);
-    const nodes = [];
-
-    for (const item of items) {
-      if (item.type === "file" && item.name.toLowerCase().endsWith(".md")) {
-        nodes.push({ type:"file", name:item.name, path:item.path, title:toTitle(item.name) });
-      } else if (item.type === "dir") {
-        nodes.push({ type:"folder", name:item.name, path:item.path, title:toTitle(item.name), children:null, loaded:false });
-      }
-    }
-
-    // Sort: folders first (alpha), then files (alpha)
-    nodes.sort((a,b) => {
-      if (a.type !== b.type) return a.type==="folder" ? -1 : 1;
-      return a.title.localeCompare(b.title);
-    });
-    return nodes;
   }
 
   /* ══════════════════════════════════════════════════════
@@ -294,248 +394,172 @@
   const audioPlayer     = document.getElementById("audio-player");
 
   /* ══════════════════════════════════════════════════════
-     RENDER MENU TREE
+     FOLDER TREE
      ══════════════════════════════════════════════════════ */
-  let topNodes = [];
+  async function buildTopLevel(){
+    const items=await fetchContents(CONFIG.notesPath);
+    const nodes=[];
+    for(const item of items){
+      if(item.type==="file"&&item.name.toLowerCase().endsWith(".md"))
+        nodes.push({type:"file",name:item.name,path:item.path,title:toTitle(item.name)});
+      else if(item.type==="dir")
+        nodes.push({type:"folder",name:item.name,path:item.path,title:toTitle(item.name),children:null,loaded:false});
+    }
+    nodes.sort((a,b)=>{ if(a.type!==b.type)return a.type==="folder"?-1:1; return a.title.localeCompare(b.title); });
+    return nodes;
+  }
 
-  function renderTree(nodes, parentEl, depth = 0) {
-    nodes.forEach((node, i) => {
-      if (node.type === "file") {
-        const a = document.createElement("a");
-        a.href = "#/" + encodeURIComponent(node.path);
-        a.textContent = node.title;
-        a.dataset.path = node.path;
-        a.className = "menu-item file-item";
-        a.style.paddingLeft = (12 + depth * 14) + "px";
-        a.style.animationDelay = (i * 50) + "ms";
-        a.addEventListener("click", e => {
-          e.preventDefault();
-          window.location.hash = "#/" + encodeURIComponent(node.path);
-          loadPage(node.path);
-        });
+  function renderTree(nodes,parentEl,depth=0){
+    nodes.forEach((node,i)=>{
+      if(node.type==="file"){
+        const a=document.createElement("a");
+        a.href="#/"+encodeURIComponent(node.path);
+        a.textContent=node.title; a.dataset.path=node.path;
+        a.className="menu-item file-item";
+        a.style.paddingLeft=(12+depth*14)+"px";
+        a.style.animationDelay=(i*50)+"ms";
+        a.addEventListener("click",e=>{e.preventDefault();window.location.hash="#/"+encodeURIComponent(node.path);loadPage(node.path);});
         parentEl.appendChild(a);
-
-      } else if (node.type === "folder") {
-        // Folder row
-        const folderBtn = document.createElement("div");
-        folderBtn.className = "folder-item";
-        folderBtn.style.paddingLeft = (10 + depth * 14) + "px";
-        folderBtn.dataset.path = node.path;
-        folderBtn.innerHTML = `
-          <span class="folder-arrow">▶</span>
-          <span class="folder-icon">◉</span>
-          <span class="folder-label">${node.title}</span>
-          <span class="folder-count" id="fc-${node.path.replace(/\//g,'_')}"></span>`;
-
-        // Children container (hidden initially)
-        const childrenEl = document.createElement("div");
-        childrenEl.className = "folder-children";
-        childrenEl.style.display = "none";
-
-        folderBtn.addEventListener("click", async () => {
-          const isOpen = childrenEl.style.display !== "none";
-
-          if (isOpen) {
-            // Close
-            childrenEl.style.display = "none";
-            folderBtn.classList.remove("open");
-          } else {
-            // Open — lazy load if needed
-            if (!node.loaded) {
-              childrenEl.innerHTML = '<p class="folder-loading">Loading…</p>';
-              childrenEl.style.display = "block";
-              folderBtn.classList.add("open");
-              try {
-                const items = await fetchContents(node.path);
-                const files = items
-                  .filter(it => it.type==="file" && it.name.toLowerCase().endsWith(".md"))
-                  .map(it => ({ type:"file", name:it.name, path:it.path, title:toTitle(it.name) }))
-                  .sort((a,b) => a.title.localeCompare(b.title));
-
-                node.children = files;
-                node.loaded   = true;
-                childrenEl.innerHTML = "";
-
-                // Update count badge
-                const countEl = document.getElementById("fc-" + node.path.replace(/\//g,'_'));
-                if (countEl) countEl.textContent = files.length;
-
-                if (files.length === 0) {
-                  childrenEl.innerHTML = '<p class="folder-empty">No notes yet.</p>';
-                } else {
-                  renderTree(files, childrenEl, depth + 1);
-                }
-              } catch (err) {
-                childrenEl.innerHTML = `<p class="folder-empty">Failed to load.</p>`;
-              }
-            } else {
-              // Already loaded — just show
-              childrenEl.style.display = "block";
-              folderBtn.classList.add("open");
-            }
+      } else {
+        const folderBtn=document.createElement("div");
+        folderBtn.className="folder-item";
+        folderBtn.style.paddingLeft=(10+depth*14)+"px";
+        folderBtn.dataset.path=node.path;
+        const fcId="fc-"+node.path.replace(/\//g,"_");
+        folderBtn.innerHTML=`<span class="folder-arrow">▶</span><span class="folder-icon">◉</span><span class="folder-label">${node.title}</span><span class="folder-count" id="${fcId}"></span>`;
+        const childrenEl=document.createElement("div");
+        childrenEl.className="folder-children";
+        childrenEl.style.display="none";
+        folderBtn.addEventListener("click",async()=>{
+          const isOpen=childrenEl.style.display!=="none";
+          if(isOpen){childrenEl.style.display="none";folderBtn.classList.remove("open");}
+          else {
+            if(!node.loaded){
+              childrenEl.innerHTML='<p class="folder-loading">Loading…</p>';
+              childrenEl.style.display="block"; folderBtn.classList.add("open");
+              try{
+                const items=await fetchContents(node.path);
+                const files=items.filter(it=>it.type==="file"&&it.name.toLowerCase().endsWith(".md"))
+                  .map(it=>({type:"file",name:it.name,path:it.path,title:toTitle(it.name)}))
+                  .sort((a,b)=>a.title.localeCompare(b.title));
+                node.children=files; node.loaded=true;
+                childrenEl.innerHTML="";
+                const countEl=document.getElementById(fcId);
+                if(countEl)countEl.textContent=files.length;
+                if(files.length===0)childrenEl.innerHTML='<p class="folder-empty">No notes yet.</p>';
+                else renderTree(files,childrenEl,depth+1);
+              }catch{childrenEl.innerHTML='<p class="folder-empty">Failed to load.</p>';}
+            } else {childrenEl.style.display="block";folderBtn.classList.add("open");}
           }
         });
-
         parentEl.appendChild(folderBtn);
         parentEl.appendChild(childrenEl);
       }
     });
   }
 
-  /* ══════════════════════════════════════════════════════
-     ACTIVE STATE
-     ══════════════════════════════════════════════════════ */
-  function setActive(path) {
-    menuEl.querySelectorAll(".file-item").forEach(el => {
-      el.classList.toggle("active", el.dataset.path === path);
-    });
-    // Auto-expand parent folder if needed
-    menuEl.querySelectorAll(".folder-item").forEach(folderBtn => {
-      const folderPath = folderBtn.dataset.path;
-      if (path.startsWith(folderPath + "/")) {
-        const childrenEl = folderBtn.nextElementSibling;
-        if (childrenEl && childrenEl.style.display === "none") {
-          folderBtn.click(); // trigger lazy load + open
-        }
+  function setActive(path){
+    menuEl.querySelectorAll(".file-item").forEach(el=>el.classList.toggle("active",el.dataset.path===path));
+    menuEl.querySelectorAll(".folder-item").forEach(folderBtn=>{
+      const fp=folderBtn.dataset.path;
+      if(path.startsWith(fp+"/")){
+        const childrenEl=folderBtn.nextElementSibling;
+        if(childrenEl&&childrenEl.style.display==="none")folderBtn.click();
       }
     });
   }
 
-  /* ══════════════════════════════════════════════════════
-     LOAD PAGE (render MD)
-     ══════════════════════════════════════════════════════ */
-  async function loadPage(path) {
-    try {
-      pageTitleEl.textContent = "Loading…";
-      contentEl.style.opacity = "0";
-      contentEl.style.transform = "translateY(6px)";
-
-      const res = await fetch(rawUrl(path));
-      if (!res.ok) throw new Error("Failed to load note.");
-      const md   = await res.text();
-      const html = marked.parse(md, { gfm:true, breaks:false });
-      contentEl.innerHTML = DOMPurify.sanitize(rewriteDoc(html, path), { ADD_ATTR:["target","rel"] });
-
-      const title   = toTitle(path.split("/").pop() || path);
-      const folder  = path.split("/").slice(-2, -1)[0];
-      const badge   = folder && folder !== CONFIG.notesPath ? toTitle(folder) : "Note";
-
-      pageTitleEl.textContent  = title;
-      topbarBadgeEl.textContent = badge;
+  async function loadPage(path){
+    try{
+      pageTitleEl.textContent="Loading…";
+      contentEl.style.opacity="0"; contentEl.style.transform="translateY(6px)";
+      const res=await fetch(rawUrl(path));
+      if(!res.ok)throw new Error("Failed to load note.");
+      const md=await res.text();
+      const html=marked.parse(md,{gfm:true,breaks:false});
+      contentEl.innerHTML=DOMPurify.sanitize(rewriteDoc(html,path),{ADD_ATTR:["target","rel"]});
+      const title=toTitle(path.split("/").pop()||path);
+      const folder=path.split("/").slice(-2,-1)[0];
+      const badge=folder&&folder!==CONFIG.notesPath?toTitle(folder):"Note";
+      pageTitleEl.textContent=title; topbarBadgeEl.textContent=badge;
       setActive(path);
-
-      requestAnimationFrame(() => {
-        contentEl.style.transition = "opacity 0.3s ease, transform 0.3s ease";
-        contentEl.style.opacity    = "1";
-        contentEl.style.transform  = "translateY(0)";
+      requestAnimationFrame(()=>{
+        contentEl.style.transition="opacity 0.3s ease, transform 0.3s ease";
+        contentEl.style.opacity="1"; contentEl.style.transform="translateY(0)";
       });
-    } catch(err) {
-      pageTitleEl.textContent = "Error";
-      contentEl.innerHTML = `<p class="muted">${err?.message || "Unknown error"}</p>`;
-      contentEl.style.opacity   = "1";
-      contentEl.style.transform = "none";
+    }catch(err){
+      pageTitleEl.textContent="Error";
+      contentEl.innerHTML=`<p class="muted">${err?.message||"Unknown error"}</p>`;
+      contentEl.style.opacity="1"; contentEl.style.transform="none";
     }
   }
 
   /* ══════════════════════════════════════════════════════
-     MUSIC PLAYER
+     MUSIC
      ══════════════════════════════════════════════════════ */
-  let currentTrack = null, isPlaying = false;
-  function mp3Url(f) { return rawUrl(CONFIG.musicPath + "/" + f); }
-  function syncToggleBtn() {
-    musicToggleIcon.textContent = isPlaying ? "⏸" : "▶";
-    musicToggleBtn.title = isPlaying ? "Pause" : "Play";
-    const v = document.querySelector(".music-vinyl");
-    if (v) v.style.animationPlayState = isPlaying ? "running" : "paused";
+  let currentTrack=null,isPlaying=false;
+  function mp3Url(f){return rawUrl(CONFIG.musicPath+"/"+f);}
+  function syncToggleBtn(){
+    musicToggleIcon.textContent=isPlaying?"⏸":"▶";
+    musicToggleBtn.title=isPlaying?"Pause":"Play";
+    const v=document.querySelector(".music-vinyl");
+    if(v)v.style.animationPlayState=isPlaying?"running":"paused";
   }
-  function playTrack(track) {
-    currentTrack = track;
-    audioPlayer.src = mp3Url(track.file);
-    audioPlayer.load();
-    audioPlayer.play().then(() => { isPlaying=true; syncToggleBtn(); }).catch(() => { isPlaying=false; syncToggleBtn(); });
-    trackTitleEl.textContent  = track.title;
-    trackArtistEl.textContent = track.artist || "";
+  function playTrack(track){
+    currentTrack=track;
+    audioPlayer.src=mp3Url(track.file); audioPlayer.load();
+    audioPlayer.play().then(()=>{isPlaying=true;syncToggleBtn();}).catch(()=>{isPlaying=false;syncToggleBtn();});
+    trackTitleEl.textContent=track.title; trackArtistEl.textContent=track.artist||"";
     nowPlayingEl.classList.remove("hidden");
-    musicMenuEl.querySelectorAll(".music-item").forEach(el => el.classList.toggle("active", el.dataset.file===track.file));
+    musicMenuEl.querySelectorAll(".music-item").forEach(el=>el.classList.toggle("active",el.dataset.file===track.file));
   }
-  musicToggleBtn.addEventListener("click", () => {
-    if (!currentTrack) return;
-    if (isPlaying) { audioPlayer.pause(); isPlaying=false; }
-    else           { audioPlayer.play();  isPlaying=true;  }
+  musicToggleBtn.addEventListener("click",()=>{
+    if(!currentTrack)return;
+    if(isPlaying){audioPlayer.pause();isPlaying=false;}else{audioPlayer.play();isPlaying=true;}
     syncToggleBtn();
   });
-  audioPlayer.addEventListener("play",  () => { isPlaying=true;  syncToggleBtn(); });
-  audioPlayer.addEventListener("pause", () => { isPlaying=false; syncToggleBtn(); });
+  audioPlayer.addEventListener("play",()=>{isPlaying=true;syncToggleBtn();});
+  audioPlayer.addEventListener("pause",()=>{isPlaying=false;syncToggleBtn();});
 
-  async function loadMusicTracks() {
-    try {
-      const res = await fetch(rawUrl(CONFIG.musicFile));
-      if (!res.ok) throw new Error();
-      const tracks = await res.json();
-      musicMenuEl.innerHTML = "";
-      tracks.forEach((track, i) => {
-        const a = document.createElement("a");
+  async function loadMusicTracks(){
+    try{
+      const res=await fetch(rawUrl(CONFIG.musicFile));
+      if(!res.ok)throw new Error();
+      const tracks=await res.json();
+      musicMenuEl.innerHTML="";
+      tracks.forEach((track,i)=>{
+        const a=document.createElement("a");
         a.href="#"; a.className="menu-item music-item";
-        a.dataset.file = track.file;
-        a.style.animationDelay = (i*60) + "ms";
-        a.innerHTML = `<span class="music-item-note">♩</span>
-          <span class="music-item-info">
-            <span class="music-item-title">${track.title}</span>
-            ${track.artist ? `<span class="music-item-artist">${track.artist}</span>` : ""}
-          </span>`;
-        a.addEventListener("click", e => { e.preventDefault(); playTrack(track); });
+        a.dataset.file=track.file; a.style.animationDelay=(i*60)+"ms";
+        a.innerHTML=`<span class="music-item-note">♩</span><span class="music-item-info"><span class="music-item-title">${track.title}</span>${track.artist?`<span class="music-item-artist">${track.artist}</span>`:""}</span>`;
+        a.addEventListener("click",e=>{e.preventDefault();playTrack(track);});
         musicMenuEl.appendChild(a);
       });
-    } catch {
-      musicMenuEl.innerHTML = '<p class="muted" style="padding:10px;font-size:0.8rem;">Add music.json to your repo root.</p>';
+    }catch{
+      musicMenuEl.innerHTML='<p class="muted" style="padding:10px;font-size:0.8rem;">Add music.json to repo root.</p>';
     }
   }
 
-  /* ══════════════════════════════════════════════════════
-     HASH ROUTING
-     ══════════════════════════════════════════════════════ */
-  function pathFromHash() {
-    const h = window.location.hash || "";
-    if (!h.startsWith("#/")) return "";
-    return decodeURIComponent(h.slice(2));
-  }
+  function pathFromHash(){const h=window.location.hash||"";if(!h.startsWith("#/"))return"";return decodeURIComponent(h.slice(2));}
+  window.addEventListener("hashchange",()=>{const p=pathFromHash();if(p)loadPage(p);});
 
-  window.addEventListener("hashchange", () => {
-    const path = pathFromHash();
-    if (path) loadPage(path);
-  });
-
-  /* ══════════════════════════════════════════════════════
-     BOOT
-     ══════════════════════════════════════════════════════ */
-  async function boot() {
-    try {
-      topNodes = await buildTopLevel();
-      if (!topNodes.length) {
-        pageTitleEl.textContent = "No Notes";
-        contentEl.innerHTML = '<p class="muted">No markdown files or folders found in notes/.</p>';
+  async function boot(){
+    try{
+      const topNodes=await buildTopLevel();
+      if(!topNodes.length){
+        pageTitleEl.textContent="No Notes";
+        contentEl.innerHTML='<p class="muted">No markdown files or folders found in notes/.</p>';
         return;
       }
-
-      menuEl.innerHTML = "";
-      renderTree(topNodes, menuEl, 0);
-
-      // Load from hash if present
-      const hashPath = pathFromHash();
-      if (hashPath && hashPath.endsWith(".md")) {
-        // Auto-open the parent folder, then load the file
-        await loadPage(hashPath);
-        setActive(hashPath);
-      }
-
-    } catch(err) {
-      pageTitleEl.textContent = "Setup Needed";
-      contentEl.innerHTML = `<p class="muted">${err?.message || "Unknown setup error"}</p>`;
+      menuEl.innerHTML="";
+      renderTree(topNodes,menuEl,0);
+      const hashPath=pathFromHash();
+      if(hashPath&&hashPath.endsWith(".md")){await loadPage(hashPath);setActive(hashPath);}
+    }catch(err){
+      pageTitleEl.textContent="Setup Needed";
+      contentEl.innerHTML=`<p class="muted">${err?.message||"Unknown setup error"}</p>`;
     }
   }
-
-  boot();
-  loadMusicTracks();
   </script>
 </body>
 </html>
