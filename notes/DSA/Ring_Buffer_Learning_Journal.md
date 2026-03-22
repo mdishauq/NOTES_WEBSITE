@@ -96,3 +96,87 @@ Each bug is valuable because it sharpened your index reasoning.
 ## Personal Note
 You are not stuck.
 You are in the exact phase where real embedded engineers level up: converting language knowledge into robust system behavior.
+
+---
+
+## Reference Code Snapshot (Current C Version)
+This is the exact implementation you built and validated so far.
+
+```c
+#include <stdio.h>
+#include <stdbool.h>
+
+#define buffer_size 8
+#define buffer_mask (buffer_size-1)
+
+typedef struct{
+	int buffer[buffer_size];
+	int head;
+	int tail;
+}Ring_buffer;
+
+static void buffer_init(Ring_buffer *rb){
+	rb->head = 0;
+	rb->tail = 0;
+}
+
+static bool buffer_is_empty(const Ring_buffer *rb){
+	return rb->head == rb->tail;
+}
+
+static bool buffer_is_full(const Ring_buffer *rb){
+	int next_head = (rb->head + 1) & buffer_mask;
+	return next_head == rb->tail;
+}
+
+static int buffer_size_used(const Ring_buffer *rb){
+	return (rb->head - rb->tail) & buffer_mask;
+}
+
+bool buffer_push(Ring_buffer *rb,int value){
+	int next_head = ((rb->head +1)& buffer_mask);
+	if(next_head == rb->tail){
+		return false;
+	}
+	rb->buffer[rb->head] = value;
+	rb->head = next_head;
+	return true;
+}
+
+bool buffer_pop(Ring_buffer *rb,int *value){
+	if(rb->head == rb->tail){
+		return false;
+	}
+	*value = rb->buffer[rb->tail];
+	rb->tail = (rb->tail + 1) & buffer_mask;
+	return true;
+}
+
+int main(){
+	Ring_buffer rb;
+	int v = 0;
+	buffer_init(&rb);
+
+	printf("empty=%d full=%d used=%d\n", buffer_is_empty(&rb), buffer_is_full(&rb), buffer_size_used(&rb));
+
+	for(int i = 1; i <= 7; ++i){
+		printf("push %d => %d\n", i, buffer_push(&rb, i));
+	}
+
+	printf("after pushes: empty=%d full=%d used=%d\n", buffer_is_empty(&rb), buffer_is_full(&rb), buffer_size_used(&rb));
+	printf("extra push => %d (expected 0 when full)\n", buffer_push(&rb, 99));
+
+	while(buffer_pop(&rb, &v)){
+		printf("pop => %d\n", v);
+	}
+
+	printf("after pops: empty=%d full=%d used=%d\n", buffer_is_empty(&rb), buffer_is_full(&rb), buffer_size_used(&rb));
+}
+```
+
+## How to Read This Quickly
+- `buffer_push` writes at `head`, then advances `head`
+- `buffer_pop` reads at `tail`, then advances `tail`
+- Full check uses next-head logic
+- Empty check uses head equals tail logic
+- Wraparound always uses mask, no modulo operator
